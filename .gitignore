@@ -9,6 +9,9 @@
 MemoryCaptures/
 Recordings/
 
+# Private study/interview notes (kept local; do not publish)
+DevelopmentLogs/
+
 # IDE and generated project files
 .vs/
 .idea/

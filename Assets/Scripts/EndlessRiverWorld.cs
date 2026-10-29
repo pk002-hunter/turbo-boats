@@ -21,6 +21,8 @@ namespace TurboBoats
         private Material roofMaterial;
         private Material obstacleMaterial;
         private Material tokenMaterial;
+        private Material healthMaterial;
+        private Material healthMarkMaterial;
 
         public Transform Boat
         {
@@ -52,6 +54,8 @@ namespace TurboBoats
             roofMaterial = MakeMaterial("Market Roof", new Color(0.82f, 0.31f, 0.12f));
             obstacleMaterial = MakeMaterial("Floating Hazard", new Color(0.34f, 0.19f, 0.10f));
             tokenMaterial = MakeMaterial("River Token", new Color(1f, 0.72f, 0.05f));
+            healthMaterial = MakeMaterial("Health Booster Green", new Color(0.12f, 0.82f, 0.32f));
+            healthMarkMaterial = MakeMaterial("Health Booster Mark", Color.white);
         }
 
         private void Start()
@@ -158,6 +162,47 @@ namespace TurboBoats
                     CreateToken(parent.transform, clearLane, localZ - 2f);
                 }
             }
+
+            if (Random.value < 0.38f)
+            {
+                int pickupLane = Random.Range(0, 3);
+                float pickupZ = 27f + Random.Range(0f, 8f);
+                CreateHealthBooster(parent, pickupLane, pickupZ);
+            }
+        }
+
+        private void CreateHealthBooster(Transform parent, int lane, float localZ)
+        {
+            GameObject pickup = new GameObject("Health Booster");
+            pickup.transform.SetParent(parent, false);
+            pickup.transform.localPosition = new Vector3((lane - 1) * LaneWidth, 0.85f, localZ);
+            SphereCollider trigger = pickup.AddComponent<SphereCollider>();
+            trigger.isTrigger = true;
+            trigger.radius = 0.8f;
+            pickup.AddComponent<HealthBooster>();
+
+            GameObject core = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            core.name = "Green first-aid pack";
+            core.transform.SetParent(pickup.transform, false);
+            core.transform.localScale = new Vector3(0.9f, 0.7f, 0.42f);
+            core.GetComponent<Renderer>().sharedMaterial = healthMaterial;
+            Destroy(core.GetComponent<Collider>());
+
+            GameObject verticalMark = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            verticalMark.name = "White plus vertical";
+            verticalMark.transform.SetParent(pickup.transform, false);
+            verticalMark.transform.localPosition = new Vector3(0f, 0f, -0.23f);
+            verticalMark.transform.localScale = new Vector3(0.16f, 0.48f, 0.08f);
+            verticalMark.GetComponent<Renderer>().sharedMaterial = healthMarkMaterial;
+            Destroy(verticalMark.GetComponent<Collider>());
+
+            GameObject horizontalMark = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            horizontalMark.name = "White plus horizontal";
+            horizontalMark.transform.SetParent(pickup.transform, false);
+            horizontalMark.transform.localPosition = new Vector3(0f, 0f, -0.23f);
+            horizontalMark.transform.localScale = new Vector3(0.48f, 0.16f, 0.08f);
+            horizontalMark.GetComponent<Renderer>().sharedMaterial = healthMarkMaterial;
+            Destroy(horizontalMark.GetComponent<Collider>());
         }
 
         private void CreateObstacle(Transform parent, int lane, float localZ, int variety)

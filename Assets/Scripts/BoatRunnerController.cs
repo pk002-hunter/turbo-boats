@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 namespace TurboBoats
 {
@@ -6,75 +7,72 @@ namespace TurboBoats
     public sealed class BoatRunnerController : MonoBehaviour
     {
         [SerializeField] private float forwardSpeed = 12f;
-        [SerializeField] private float laneWidth = 3.2f;
-        [SerializeField] private float laneChangeSpeed = 8f;
+        [SerializeField] private float steeringSpeed = 7.5f;
+        [SerializeField] private float steeringAcceleration = 18f;
+        [SerializeField] private float riverHalfWidth = 4.8f;
+        [SerializeField] private float smokeOffset = -1.35f;
 
-        private int lane = 1;
-        private float swipeStartX;
-        private bool trackingSwipe;
+        private float lateralVelocity;
+        private Vector2 touchStart;
+        private bool trackingTouch;
+        private ParticleSystem damageSmoke;
 
         public float ForwardSpeed => forwardSpeed;
+
+        private void Awake()
+        {
+            // The prototype's original root collider covered the whole boat. Replace it
+            // with bow/stern zones so the stern can take damage without ending the run.
+            foreach (Collider collider in GetComponents<Collider>())
+                collider.enabled = false;
+
+            EnsureCollisionZone("Bow Collision Zone", new Vector3(0f, 0f, 1.15f), new Vector3(1.65f, 0.72f, 1.5f), false);
+            EnsureCollisionZone("Stern Collision Zone", new Vector3(0f, 0f, -1.55f), new Vector3(1.45f, 0.72f, 1.25f), true);
+            CreateDamageSmoke();
+        }
 
         private void Update()
         {
             if (GameManager.Instance != null && GameManager.Instance.IsGameOver)
                 return;
 
-            ReadSteeringInput();
+            float steering = ReadSteeringInput();
+            lateralVelocity = Mathf.MoveTowards(lateralVelocity, steering * steeringSpeed, steeringAcceleration * Time.deltaTime);
 
             Vector3 position = transform.position;
             position.z += forwardSpeed * Time.deltaTime;
-            float targetX = (lane - 1) * laneWidth;
-            position.x = Mathf.MoveTowards(position.x, targetX, laneChangeSpeed * Time.deltaTime);
+            position.x = Mathf.Clamp(position.x + lateralVelocity * Time.deltaTime, -riverHalfWidth, riverHalfWidth);
+            if (Mathf.Abs(position.x) >= riverHalfWidth)
+                lateralVelocity = 0f;
             transform.position = position;
 
-            float turn = targetX - position.x;
-            Quaternion targetRotation = Quaternion.Euler(0f, Mathf.Clamp(turn * -4f, -12f, 12f), Mathf.Clamp(turn * 3f, -10f, 10f));
-            transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * 5f);
+            float bank = -Mathf.Clamp(lateralVelocity * 1.8f, -18f, 18f);
+            float heading = Mathf.Clamp(-lateralVelocity * 1.1f, -10f, 10f);
+            Quaternion targetRotation = Quaternion.Euler(0f, heading, bank);
+            transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * 4f);
         }
 
         public void ResetBoat()
         {
-            lane = 1;
+            lateralVelocity = 0f;
             transform.position = new Vector3(0f, 0.15f, 0f);
             transform.rotation = Quaternion.identity;
+            if (damageSmoke != null)
+                damageSmoke.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
         }
 
-        private void ReadSteeringInput()
+        internal void HandleCollision(Collider other, bool isStern)
         {
-            if (Input.GetKeyDown(KeyCode.LeftArrow) || Input.GetKeyDown(KeyCode.A))
-                ChangeLane(-1);
-            if (Input.GetKeyDown(KeyCode.RightArrow) || Input.GetKeyDown(KeyCode.D))
-                ChangeLane(1);
+            if (GameManager.Instance == null || GameManager.Instance.IsGameOver)
+                return;
 
-            if (Input.touchCount == 0)
+            HealthBooster booster = other.GetComponent<HealthBooster>();
+            if (booster != null)
             {
-                trackingSwipe = false;
+                booster.Collect();
                 return;
             }
 
-            Touch touch = Input.GetTouch(0);
-            if (touch.phase == TouchPhase.Began)
-            {
-                swipeStartX = touch.position.x;
-                trackingSwipe = true;
-            }
-            else if (trackingSwipe && touch.phase == TouchPhase.Ended)
-            {
-                float swipe = touch.position.x - swipeStartX;
-                if (Mathf.Abs(swipe) > Screen.width * 0.08f)
-                    ChangeLane(swipe < 0f ? -1 : 1);
-                trackingSwipe = false;
-            }
-        }
-
-        private void ChangeLane(int direction)
-        {
-            lane = Mathf.Clamp(lane + direction, 0, 2);
-        }
-
-        private void OnTriggerEnter(Collider other)
-        {
             RiverToken token = other.GetComponent<RiverToken>();
             if (token != null)
             {
@@ -82,8 +80,93 @@ namespace TurboBoats
                 return;
             }
 
-            if (other.GetComponent<BoatObstacle>() != null && GameManager.Instance != null)
+            if (other.GetComponent<BoatObstacle>() == null)
+                return;
+
+            if (isStern)
+            {
+                if (GameManager.Instance.TakeDamage())
+                    EmitDamageSmoke();
+            }
+            else
+            {
                 GameManager.Instance.Crash();
+            }
+        }
+
+        private float ReadSteeringInput()
+        {
+            float direction = 0f;
+            if (Keyboard.current != null)
+            {
+                if (Keyboard.current.leftArrowKey.isPressed || Keyboard.current.aKey.isPressed) direction -= 1f;
+                if (Keyboard.current.rightArrowKey.isPressed || Keyboard.current.dKey.isPressed) direction += 1f;
+            }
+            if (Gamepad.current != null)
+                direction += Gamepad.current.leftStick.x.ReadValue();
+
+            if (Touchscreen.current == null)
+            {
+                trackingTouch = false;
+                return Mathf.Clamp(direction, -1f, 1f);
+            }
+
+            var touch = Touchscreen.current.primaryTouch;
+            if (touch.press.wasPressedThisFrame)
+            {
+                touchStart = touch.position.ReadValue();
+                trackingTouch = true;
+            }
+            if (trackingTouch && touch.press.isPressed)
+            {
+                float delta = touch.position.ReadValue().x - touchStart.x;
+                direction = Mathf.Clamp(delta / Mathf.Max(1f, Screen.width * 0.18f), -1f, 1f);
+            }
+            if (touch.press.wasReleasedThisFrame)
+                trackingTouch = false;
+
+            return Mathf.Clamp(direction, -1f, 1f);
+        }
+
+        private void EnsureCollisionZone(string zoneName, Vector3 localPosition, Vector3 size, bool isStern)
+        {
+            Transform existing = transform.Find(zoneName);
+            GameObject zone = existing != null ? existing.gameObject : new GameObject(zoneName);
+            zone.transform.SetParent(transform, false);
+            zone.transform.localPosition = localPosition;
+            zone.transform.localRotation = Quaternion.identity;
+            BoxCollider box = zone.GetComponent<BoxCollider>() ?? zone.AddComponent<BoxCollider>();
+            box.size = size;
+            box.isTrigger = true;
+            BoatCollisionZone handler = zone.GetComponent<BoatCollisionZone>() ?? zone.AddComponent<BoatCollisionZone>();
+            handler.Initialize(this, isStern);
+        }
+
+        private void CreateDamageSmoke()
+        {
+            GameObject smokeObject = new GameObject("Stern Damage Smoke");
+            smokeObject.transform.SetParent(transform, false);
+            smokeObject.transform.localPosition = new Vector3(0f, 0.45f, smokeOffset);
+            damageSmoke = smokeObject.AddComponent<ParticleSystem>();
+            var main = damageSmoke.main;
+            main.loop = false;
+            main.playOnAwake = false;
+            main.startLifetime = 1.1f;
+            main.startSpeed = 1.2f;
+            main.startSize = new ParticleSystem.MinMaxCurve(0.16f, 0.42f);
+            main.startColor = new Color(0.2f, 0.2f, 0.2f, 0.72f);
+            var emission = damageSmoke.emission;
+            emission.enabled = false;
+            var shape = damageSmoke.shape;
+            shape.shapeType = ParticleSystemShapeType.Cone;
+            shape.angle = 18f;
+            shape.radius = 0.15f;
+        }
+
+        private void EmitDamageSmoke()
+        {
+            if (damageSmoke != null)
+                damageSmoke.Emit(18);
         }
     }
 }
