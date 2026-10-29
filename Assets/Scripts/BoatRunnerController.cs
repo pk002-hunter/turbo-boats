@@ -135,10 +135,24 @@ namespace TurboBoats
             zone.transform.SetParent(transform, false);
             zone.transform.localPosition = localPosition;
             zone.transform.localRotation = Quaternion.identity;
-            BoxCollider box = zone.GetComponent<BoxCollider>() ?? zone.AddComponent<BoxCollider>();
+            // Use Unity's overloaded null check here. Null-coalescing (??) only checks
+            // CLR null and can keep a destroyed/missing Unity component wrapper.
+            if (!zone.TryGetComponent(out BoxCollider box) || box == null)
+                box = zone.AddComponent<BoxCollider>();
+            if (box == null)
+            {
+                Debug.LogError($"Could not create the BoxCollider for {zoneName}.", zone);
+                return;
+            }
             box.size = size;
             box.isTrigger = true;
-            BoatCollisionZone handler = zone.GetComponent<BoatCollisionZone>() ?? zone.AddComponent<BoatCollisionZone>();
+            if (!zone.TryGetComponent(out BoatCollisionZone handler) || handler == null)
+                handler = zone.AddComponent<BoatCollisionZone>();
+            if (handler == null)
+            {
+                Debug.LogError($"Could not create the collision handler for {zoneName}.", zone);
+                return;
+            }
             handler.Initialize(this, isStern);
         }
 
