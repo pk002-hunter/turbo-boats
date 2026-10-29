@@ -18,7 +18,7 @@ Open this project in Unity **6000.6.7f1**, then use **Turbo Boats > Build**:
 - **Android Development APK** writes to `Builds/Android/TurboBoats.apk` and uses a development build for device checks.
 - **iOS Development Project** writes the Xcode project to `Builds/iOS`.
 
-The commands use enabled scenes from Build Settings. `Assets/Scenes/CanalRun.unity` is currently the enabled startup scene. Build outputs are ignored by Git.
+The commands use enabled scenes from Build Settings. `Assets/Scenes/CanalRun.unity` is currently the enabled startup scene. Android and iOS build outputs remain ignored by Git. The current WebGL output is checked in under `Builds/WebGL` so it can be downloaded with the project; rebuild that folder after source changes before sharing a browser build.
 
 ### Web hosting
 

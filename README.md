@@ -34,7 +34,7 @@ The prototype starts with three hull points. The HUD displays distance, tokens, 
 2. Open `Assets/Scenes/CanalRun.unity`.
 3. Press **Play** in the Unity Editor.
 
-If the scene file is missing, the editor bootstrap can create the graybox scene. The repository contains an editor project and a successful WebGL output under the ignored `Builds/WebGL` folder. Rebuild before browser QA to include the latest HUD allocation improvement. Use **Turbo Boats > Build > WebGL** in Unity. Android and iOS development build commands are included, but their Unity platform modules are not installed in this environment. See [platform build status and delivery notes](docs/PLATFORM_BUILDS.md).
+If the scene file is missing, the editor bootstrap can create the scene. The repository includes a checked-in WebGL build under `Builds/WebGL`; serve that folder over HTTP to run it in a browser. Use **Turbo Boats > Build > WebGL** in Unity to rebuild it. Android and iOS development build commands are included, but their Unity platform modules are not installed in this environment. See [platform build status and delivery notes](docs/PLATFORM_BUILDS.md).
 
 ## Project status
 
