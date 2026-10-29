@@ -7,20 +7,36 @@ namespace TurboBoats
     public sealed class BoatRunnerController : MonoBehaviour
     {
         [SerializeField] private float forwardSpeed = 12f;
+        [SerializeField, Min(1f)] private float boostSpeedMultiplier = 1.75f;
+        [SerializeField, Min(0.1f)] private float boostDuration = 2f;
+        [SerializeField, Min(0f)] private float boostCooldown = 5f;
         [SerializeField] private float steeringSpeed = 7.5f;
         [SerializeField] private float steeringAcceleration = 18f;
         [SerializeField] private float riverHalfWidth = 4.8f;
         [SerializeField] private float smokeOffset = -1.35f;
 
+        private Rigidbody boatBody;
         private float lateralVelocity;
+        private float steeringInput;
+        private float boostTimeRemaining;
+        private float boostCooldownRemaining;
+        private bool boostActivationPending;
         private Vector2 touchStart;
         private bool trackingTouch;
+        private bool touchStartedOnBoost;
+        private int touchButtonDirection;
         private ParticleSystem damageSmoke;
 
-        public float ForwardSpeed => forwardSpeed;
+        public bool IsBoosting => boostTimeRemaining > 0f;
+        public bool IsBoostReady => !IsBoosting && boostCooldownRemaining <= 0f;
+        public float BoostCooldownRemaining => boostCooldownRemaining;
+        public float ForwardSpeed => IsBoosting ? forwardSpeed * boostSpeedMultiplier : forwardSpeed;
 
         private void Awake()
         {
+            boatBody = GetComponent<Rigidbody>();
+            boatBody.interpolation = RigidbodyInterpolation.Interpolate;
+
             // The prototype's original root collider covered the whole boat. Replace it
             // with bow/stern zones so the stern can take damage without ending the run.
             foreach (Collider collider in GetComponents<Collider>())
@@ -34,29 +50,76 @@ namespace TurboBoats
         private void Update()
         {
             if (GameManager.Instance != null && GameManager.Instance.IsGameOver)
+            {
+                steeringInput = 0f;
+                boostActivationPending = false;
+                return;
+            }
+
+            steeringInput = ReadSteeringInput();
+            if (ReadBoostPressedThisFrame())
+                boostActivationPending = true;
+        }
+
+        private void FixedUpdate()
+        {
+            if (GameManager.Instance != null && GameManager.Instance.IsGameOver)
                 return;
 
-            float steering = ReadSteeringInput();
-            lateralVelocity = Mathf.MoveTowards(lateralVelocity, steering * steeringSpeed, steeringAcceleration * Time.deltaTime);
+            boostCooldownRemaining = Mathf.Max(0f, boostCooldownRemaining - Time.fixedDeltaTime);
+            if (boostActivationPending)
+            {
+                boostActivationPending = false;
+                if (boostTimeRemaining <= 0f && boostCooldownRemaining <= 0f)
+                {
+                    boostTimeRemaining = boostDuration;
+                    boostCooldownRemaining = boostCooldown;
+                }
+            }
 
-            Vector3 position = transform.position;
-            position.z += forwardSpeed * Time.deltaTime;
-            position.x = Mathf.Clamp(position.x + lateralVelocity * Time.deltaTime, -riverHalfWidth, riverHalfWidth);
-            if (Mathf.Abs(position.x) >= riverHalfWidth)
+            Vector3 position = boatBody.position;
+            float boundedSteering = steeringInput;
+            if ((position.x <= -riverHalfWidth && boundedSteering < 0f)
+                || (position.x >= riverHalfWidth && boundedSteering > 0f))
+            {
+                boundedSteering = 0f;
+            }
+
+            lateralVelocity = Mathf.MoveTowards(
+                lateralVelocity,
+                boundedSteering * steeringSpeed,
+                steeringAcceleration * Time.fixedDeltaTime);
+
+            float currentForwardSpeed = ForwardSpeed;
+            if (boostTimeRemaining > 0f)
+            {
+                boostTimeRemaining = Mathf.Max(0f, boostTimeRemaining - Time.fixedDeltaTime);
+            }
+
+            position.z += currentForwardSpeed * Time.fixedDeltaTime;
+            position.x = Mathf.Clamp(position.x + lateralVelocity * Time.fixedDeltaTime, -riverHalfWidth, riverHalfWidth);
+            if ((position.x <= -riverHalfWidth && lateralVelocity < 0f)
+                || (position.x >= riverHalfWidth && lateralVelocity > 0f))
+            {
                 lateralVelocity = 0f;
-            transform.position = position;
+            }
 
             float bank = -Mathf.Clamp(lateralVelocity * 1.8f, -18f, 18f);
             float heading = Mathf.Clamp(-lateralVelocity * 1.1f, -10f, 10f);
             Quaternion targetRotation = Quaternion.Euler(0f, heading, bank);
-            transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * 4f);
+            boatBody.MovePosition(position);
+            boatBody.MoveRotation(Quaternion.Slerp(boatBody.rotation, targetRotation, Time.fixedDeltaTime * 4f));
         }
 
         public void ResetBoat()
         {
             lateralVelocity = 0f;
-            transform.position = new Vector3(0f, 0.15f, 0f);
-            transform.rotation = Quaternion.identity;
+            steeringInput = 0f;
+            boostTimeRemaining = 0f;
+            boostCooldownRemaining = 0f;
+            boostActivationPending = false;
+            boatBody.position = new Vector3(0f, 0.15f, 0f);
+            boatBody.rotation = Quaternion.identity;
             if (damageSmoke != null)
                 damageSmoke.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
         }
@@ -108,6 +171,8 @@ namespace TurboBoats
             if (Touchscreen.current == null)
             {
                 trackingTouch = false;
+                touchStartedOnBoost = false;
+                touchButtonDirection = 0;
                 return Mathf.Clamp(direction, -1f, 1f);
             }
 
@@ -116,16 +181,72 @@ namespace TurboBoats
             {
                 touchStart = touch.position.ReadValue();
                 trackingTouch = true;
+                touchStartedOnBoost = GameManager.GetBoostControlRect(GetTouchSafeArea()).Contains(touchStart);
+                touchButtonDirection = GetTouchButtonDirection(touchStart);
             }
             if (trackingTouch && touch.press.isPressed)
             {
-                float delta = touch.position.ReadValue().x - touchStart.x;
-                direction = Mathf.Clamp(delta / Mathf.Max(1f, Screen.width * 0.18f), -1f, 1f);
+                if (touchStartedOnBoost)
+                {
+                    direction = 0f;
+                }
+                else if (touchButtonDirection != 0)
+                {
+                    direction = touchButtonDirection;
+                }
+                else
+                {
+                    float delta = touch.position.ReadValue().x - touchStart.x;
+                    direction = Mathf.Clamp(delta / Mathf.Max(1f, Screen.width * 0.18f), -1f, 1f);
+                }
             }
             if (touch.press.wasReleasedThisFrame)
+            {
                 trackingTouch = false;
+                touchStartedOnBoost = false;
+                touchButtonDirection = 0;
+            }
 
             return Mathf.Clamp(direction, -1f, 1f);
+        }
+
+        private static int GetTouchButtonDirection(Vector2 touchPosition)
+        {
+            Rect safeArea = GetTouchSafeArea();
+
+            if (GameManager.GetTouchControlRect(safeArea, false).Contains(touchPosition))
+                return -1;
+            if (GameManager.GetTouchControlRect(safeArea, true).Contains(touchPosition))
+                return 1;
+            return 0;
+        }
+
+        private bool ReadBoostPressedThisFrame()
+        {
+            bool pressed = Keyboard.current != null
+                && (Keyboard.current.wKey.wasPressedThisFrame || Keyboard.current.upArrowKey.wasPressedThisFrame);
+
+            Touchscreen touchscreen = Touchscreen.current;
+            if (touchscreen == null)
+                return pressed;
+
+            Rect boostControl = GameManager.GetBoostControlRect(GetTouchSafeArea());
+            for (int i = 0; i < touchscreen.touches.Count; i++)
+            {
+                var touch = touchscreen.touches[i];
+                if (touch.press.wasPressedThisFrame && boostControl.Contains(touch.position.ReadValue()))
+                    return true;
+            }
+
+            return pressed;
+        }
+
+        private static Rect GetTouchSafeArea()
+        {
+            Rect safeArea = Screen.safeArea;
+            if (safeArea.width <= 0f || safeArea.height <= 0f)
+                safeArea = new Rect(0f, 0f, Screen.width, Screen.height);
+            return safeArea;
         }
 
         private void EnsureCollisionZone(string zoneName, Vector3 localPosition, Vector3 size, bool isStern)
