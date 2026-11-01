@@ -529,7 +529,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::TurboBoats.CameraFollow
   target: {fileID: 154930900}
-  offset: {x: 0, y: 6, z: -11}
+  offset: {x: 0, y: 5.5, z: -10}
   followSpeed: 5
 --- !u!20 &408857174
 Camera:
@@ -591,7 +591,7 @@ Transform:
   m_GameObject: {fileID: 408857172}
   serializedVersion: 2
   m_LocalRotation: {x: 0.1487874, y: 0, z: 0, w: 0.98886925}
-  m_LocalPosition: {x: 0, y: 6, z: -11}
+  m_LocalPosition: {x: 0, y: 5.5, z: -10}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []

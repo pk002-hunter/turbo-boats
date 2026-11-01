@@ -4,7 +4,7 @@
 
 ![Turbo Boats concept art: a Thai longtail boat navigating a Bangkok canal](docs/images/tropical-canal-boat-race.png)
 
-<p align="center"><sub>Concept art for the visual direction. The Unity river and player boat use separate procedural, low-poly runtime geometry; the concept image is not a game texture or model.</sub></p>
+<p align="center"><sub>Concept art for the visual direction. Unity builds its own boat and river scene and uses separate stylized texture maps; this image is a reference, not a runtime asset.</sub></p>
 
 **Status:** Prototype &nbsp; · &nbsp; **Engine:** Unity 6000.6.7f1 &nbsp; · &nbsp; **Language:** C# &nbsp; · &nbsp; **Targets:** WebGL build produced; Android/iOS setup in progress
 
@@ -36,6 +36,8 @@ The prototype starts with three hull points. The HUD displays distance, tokens, 
 
 If the scene file is missing, the editor bootstrap can create the scene. The repository includes a checked-in WebGL build under `Builds/WebGL`; serve that folder over HTTP to run it in a browser. Use **Turbo Boats > Build > WebGL** in Unity to rebuild it. Android and iOS development build commands are included, but their Unity platform modules are not installed in this environment. See [platform build status and delivery notes](docs/PLATFORM_BUILDS.md).
 
+See the [2026-11-01 stylized art and texture pass](docs/2026-11-01-stylized-art-texture-pass.md) for the current visual direction, Unity texture/shader changes, and build review status.
+
 ## Project status
 
 ### Implemented prototype systems
@@ -43,6 +45,7 @@ If the scene file is missing, the editor bootstrap can create the scene. The rep
 - Continuous boat steering for keyboard, gamepad, and touchscreen input.
 - Procedurally spawned river sections with four distinct canal, market, paddy, and forest visual themes.
 - Procedural Thai longtail boat presentation with a painted teak hull, exposed motor, drive shaft, and bow silk details.
+- Repeatable base-color, normal, and surface maps for teak, market timber, canal water, terracotta roofs, and woven awnings.
 - Floating hazards, token pickups, hull health, stern-damage smoke, and health boosters.
 - Chase camera, run-state handling, HUD, and restart flow.
 - Unity's Input System package for gameplay input.
@@ -73,7 +76,10 @@ WebGL has built successfully, but browser or device qualification is still pendi
 | Location | Responsibility |
 |---|---|
 | `Assets/Scripts/BoatRunnerController.cs` | Boat movement, input, collision handling, and damage feedback |
-| `Assets/Scripts/ThaiLongtailBoatVisual.cs` | Runtime-only low-poly longtail hull and motor visuals; does not use concept art as an asset |
+| `Assets/Scripts/ThaiLongtailBoatVisual.cs` | Runtime low-poly longtail hull and motor visuals |
+| `Assets/Scripts/StylizedTextureLibrary.cs` | Loads and applies shared runtime texture maps |
+| `Assets/Resources/TurboBoats/Textures/` | Stylized repeatable albedo, normal, and surface maps |
+| `Assets/Editor/StylizedTextureImporter.cs` | Configures map import settings for repeat, mipmaps, color space, and normal decoding |
 | `Assets/Scripts/BoatCollisionZone.cs` | Bow and stern collision-zone trigger forwarding |
 | `Assets/Scripts/GameManager.cs` | Run state, hull health, tokens, HUD, and restart |
 | `Assets/Scripts/EndlessRiverWorld.cs` | River sections, scenery, obstacles, tokens, and health pickups |

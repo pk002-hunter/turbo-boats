@@ -60,8 +60,8 @@ namespace TurboBoats.Editor
             cameraObject.tag = "MainCamera";
             CameraFollow follow = cameraObject.AddComponent<CameraFollow>();
             follow.Target = boat.transform;
-            cameraObject.transform.position = new Vector3(0f, 6f, -11f);
-            cameraObject.transform.LookAt(boat.transform.position + Vector3.forward * 8f);
+            cameraObject.transform.position = new Vector3(0f, 5.5f, -10f);
+            cameraObject.transform.LookAt(boat.transform.position + Vector3.forward * 7.5f);
 
             GameObject lightObject = new GameObject("Sunlight");
             Light sunlight = lightObject.AddComponent<Light>();

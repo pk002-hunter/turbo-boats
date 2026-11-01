@@ -32,6 +32,7 @@ namespace TurboBoats
         private Material tokenMaterial;
         private Material healthMaterial;
         private Material healthMarkMaterial;
+        private Material[] produceMaterials;
 
         public Transform Boat
         {
@@ -44,7 +45,7 @@ namespace TurboBoats
             get
             {
                 int currentSection = Mathf.Max(0, Mathf.FloorToInt((boat == null ? 0f : boat.position.z) / SectionLength));
-                return zoneNames[(currentSection / 4) % zoneNames.Length];
+                return zoneNames[((currentSection / 4) + 1) % zoneNames.Length];
             }
         }
 
@@ -60,7 +61,7 @@ namespace TurboBoats
             bankMaterials = new[]
             {
                 MakeMaterial("Canal Silt and Stone", new Color(0.36f, 0.30f, 0.19f)),
-                MakeMaterial("Market Canal Timber Bank", new Color(0.40f, 0.30f, 0.18f)),
+                MakeMaterial("Market Canal Garden Bank", new Color(0.34f, 0.43f, 0.27f)),
                 MakeMaterial("Rice Field Earth", new Color(0.40f, 0.39f, 0.20f)),
                 MakeMaterial("Forest River Earth", new Color(0.20f, 0.25f, 0.14f))
             };
@@ -86,6 +87,21 @@ namespace TurboBoats
             tokenMaterial = MakeMaterial("River Token Gold", new Color(1f, 0.69f, 0.08f), 0.68f);
             healthMaterial = MakeMaterial("Health Booster Green", new Color(0.12f, 0.82f, 0.32f));
             healthMarkMaterial = MakeMaterial("Health Booster Mark", Color.white);
+            produceMaterials = new[]
+            {
+                MakeMaterial("Market Mango Gold", new Color(1f, 0.63f, 0.12f)),
+                MakeMaterial("Market Lime Green", new Color(0.42f, 0.78f, 0.16f)),
+                MakeMaterial("Market Dragonfruit Pink", new Color(0.91f, 0.22f, 0.32f))
+            };
+
+            for (int i = 0; i < waterMaterials.Length; i++)
+                StylizedTextureLibrary.Apply(waterMaterials[i], "canal_water_albedo", "canal_water_normal", "water_surface", new Vector2(2.4f, 4.2f), 0.3f);
+            StylizedTextureLibrary.Apply(roofMaterials[0], "market_terracotta_albedo", "market_terracotta_normal", "terracotta_surface", new Vector2(1.2f, 1.4f), 0.24f);
+            StylizedTextureLibrary.Apply(timberMaterial, "market_timber_albedo", "market_timber_normal", "timber_surface", new Vector2(1.3f, 1.1f), 0.28f);
+            StylizedTextureLibrary.Apply(timberDarkMaterial, "market_timber_albedo", "market_timber_normal", "timber_surface", new Vector2(1.7f, 1.2f), 0.22f);
+            StylizedTextureLibrary.Apply(marketCanopyMaterial, "market_canvas_albedo", "market_canvas_normal", "canvas_surface", new Vector2(2f, 2f), 0.14f, true);
+            StylizedTextureLibrary.Apply(marketCanopyAltMaterial, "market_canvas_albedo", "market_canvas_normal", "canvas_surface", new Vector2(2f, 2f), 0.14f, true);
+            StylizedTextureLibrary.Apply(obstacleMaterial, "market_timber_albedo", "market_timber_normal", "timber_surface", new Vector2(0.9f, 0.8f), 0.25f);
 
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.Linear;
@@ -111,6 +127,8 @@ namespace TurboBoats
                 if (singleMaterials[i] != null)
                     Destroy(singleMaterials[i]);
             }
+            if (produceMaterials != null)
+                DestroyMaterials(produceMaterials);
         }
 
         private void DestroyMaterials(Material[] materials)
@@ -163,7 +181,7 @@ namespace TurboBoats
 
         private void SpawnSection(int index)
         {
-            int zoneIndex = (index / 4) % zoneNames.Length;
+            int zoneIndex = ((index / 4) + 1) % zoneNames.Length;
             float startZ = index * SectionLength;
             GameObject root = new GameObject($"River Section {index + 1} - {zoneNames[zoneIndex]}");
             root.transform.SetParent(transform, false);
@@ -199,7 +217,13 @@ namespace TurboBoats
                 float towardWater = side < 0 ? 90f : -90f;
                 if (zoneIndex == 1)
                 {
-                    CreateMarketStall(parent, x, z, towardWater, side);
+                    CreateBlock(parent, "Floating market timber boardwalk", new Vector3(side * 13.1f, 0.58f, SectionLength * 0.5f), new Vector3(3.5f, 0.18f, SectionLength), timberDarkMaterial);
+                    for (int stall = 0; stall < 4; stall++)
+                        CreateMarketStall(parent, side * 11.5f, 4.5f + stall * 10.2f, towardWater, side);
+
+                    CreateStiltHouse(parent, "Floating market shopfront one", side * 16.4f, 10f, side, roofMaterials[0], timberMaterial);
+                    CreateStiltHouse(parent, "Floating market shopfront two", side * 16.4f, 30f, side, roofMaterials[0], timberMaterial);
+                    CreatePalm(parent, side * 19.1f, 20f, side);
                 }
                 else if (zoneIndex == 2)
                 {
@@ -211,6 +235,9 @@ namespace TurboBoats
                 else
                     CreateStiltHouse(parent, "Bangkok canal house", x, z, side, roofMaterials[zoneIndex], timberMaterial);
             }
+
+            if (zoneIndex == 1)
+                CreateMarketBridge(parent);
         }
 
         private void CreateRiverBuoy(Transform parent, float x, float z, bool useAccent)
@@ -254,10 +281,33 @@ namespace TurboBoats
         {
             CreateBlock(parent, "Market timber counter", new Vector3(x, 0.85f, z), new Vector3(2.65f, 0.25f, 2.1f), timberDarkMaterial);
             CreateBlock(parent, "Market produce display", new Vector3(x, 1.08f, z), new Vector3(2.15f, 0.25f, 1.55f), side < 0 ? marketCanopyMaterial : marketCanopyAltMaterial);
+            for (int fruit = 0; fruit < 9; fruit++)
+            {
+                int column = fruit % 3;
+                int row = fruit / 3;
+                float fruitX = x + (column - 1) * 0.39f;
+                float fruitZ = z + (row - 1) * 0.36f;
+                float fruitY = 1.34f + ((fruit + side) % 2) * 0.045f;
+                CreatePrimitive(parent, "Market fruit", PrimitiveType.Sphere,
+                    new Vector3(fruitX, fruitY, fruitZ), new Vector3(0.27f, 0.24f, 0.27f),
+                    Quaternion.identity, produceMaterials[(fruit + Mathf.Abs(side)) % produceMaterials.Length]);
+            }
             for (int post = -1; post <= 1; post += 2)
                 CreatePrimitive(parent, "Market canopy pole", PrimitiveType.Cylinder, new Vector3(x + post * 1.12f, 1.65f, z), new Vector3(0.075f, 0.8f, 0.075f), Quaternion.identity, timberMaterial);
             CreateMarketUmbrella(parent, new Vector3(x, 2.42f, z), facingYaw);
             CreateBlock(parent, "Market mooring plank", new Vector3(x - side * 1.75f, 0.54f, z + 0.3f), new Vector3(0.72f, 0.12f, 2.8f), timberMaterial);
+        }
+
+        private void CreateMarketBridge(Transform parent)
+        {
+            float z = SectionLength - 2.2f;
+            CreateBlock(parent, "Floating market timber bridge", new Vector3(0f, 5.15f, z), new Vector3(21f, 0.42f, 2.2f), timberDarkMaterial);
+            for (int side = -1; side <= 1; side += 2)
+            {
+                float x = side * 9.1f;
+                CreateBlock(parent, "Bridge timber pier", new Vector3(x, 2.65f, z), new Vector3(0.55f, 5.1f, 1.1f), timberMaterial);
+                CreateBlock(parent, "Bridge handrail", new Vector3(x, 5.78f, z), new Vector3(0.2f, 0.9f, 2.3f), marketCanopyMaterial);
+            }
         }
 
         private void CreateMarketUmbrella(Transform parent, Vector3 center, float yaw)
@@ -507,19 +557,14 @@ namespace TurboBoats
 
         private static Material MakeMaterial(string name, Color color, float smoothness)
         {
-            Shader shader = Shader.Find("Universal Render Pipeline/Lit");
-            if (shader == null)
-                shader = Shader.Find("Standard");
-            Material material = new Material(shader) { name = name, color = color };
-            if (material.HasProperty("_Smoothness")) material.SetFloat("_Smoothness", smoothness);
-            if (material.HasProperty("_Glossiness")) material.SetFloat("_Glossiness", smoothness);
-            return material;
+            return StylizedTextureLibrary.CreateMaterial(name, color, smoothness);
         }
 
         private sealed class MeshBuilder
         {
             private readonly List<Vector3> vertices = new List<Vector3>();
             private readonly List<int> triangles = new List<int>();
+            private readonly List<Vector2> uvs = new List<Vector2>();
 
             public void AddTriangle(Vector3 a, Vector3 b, Vector3 c, Vector3 normalHint)
             {
@@ -534,6 +579,9 @@ namespace TurboBoats
                 vertices.Add(a);
                 vertices.Add(b);
                 vertices.Add(c);
+                uvs.Add(new Vector2(a.x * 0.32f, a.z * 0.32f));
+                uvs.Add(new Vector2(b.x * 0.32f, b.z * 0.32f));
+                uvs.Add(new Vector2(c.x * 0.32f, c.z * 0.32f));
                 triangles.Add(first);
                 triangles.Add(first + 1);
                 triangles.Add(first + 2);
@@ -544,6 +592,7 @@ namespace TurboBoats
                 Mesh mesh = new Mesh();
                 mesh.vertices = vertices.ToArray();
                 mesh.triangles = triangles.ToArray();
+                mesh.uv = uvs.ToArray();
                 mesh.RecalculateNormals();
                 mesh.RecalculateBounds();
                 return mesh;

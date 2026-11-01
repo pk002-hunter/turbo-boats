@@ -4,8 +4,8 @@ using UnityEngine;
 namespace TurboBoats
 {
     /// <summary>
-    /// Builds the player's art from small, untextured meshes so the prototype does not
-    /// depend on imported or concept-image assets. It has no colliders and no gameplay logic.
+    /// Builds the player's art from procedural meshes and imported stylized texture maps.
+    /// It has no colliders and no gameplay logic.
     /// </summary>
     public sealed class ThaiLongtailBoatVisual : MonoBehaviour
     {
@@ -60,6 +60,9 @@ namespace TurboBoats
             Material cream = MakeMaterial("Longtail Silk Paint", CreamColor, 0.25f);
             Material engine = MakeMaterial("Longtail Engine Graphite", EngineColor, 0.48f);
             Material metal = MakeMaterial("Longtail Engine Steel", MetalColor, 0.72f);
+
+            StylizedTextureLibrary.Apply(hull, "longtail_teak_albedo", "longtail_teak_normal", "teak_surface", new Vector2(1.2f, 0.9f), 0.22f);
+            StylizedTextureLibrary.Apply(deck, "longtail_teak_albedo", "longtail_teak_normal", "teak_surface", new Vector2(1.5f, 1.1f), 0.2f);
 
             BuildHull(hull, gold, teal);
 
@@ -207,12 +210,7 @@ namespace TurboBoats
 
         private Material MakeMaterial(string name, Color color, float smoothness)
         {
-            Shader shader = Shader.Find("Universal Render Pipeline/Lit");
-            if (shader == null)
-                shader = Shader.Find("Standard");
-            Material material = new Material(shader) { name = name, color = color };
-            if (material.HasProperty("_Smoothness")) material.SetFloat("_Smoothness", smoothness);
-            if (material.HasProperty("_Glossiness")) material.SetFloat("_Glossiness", smoothness);
+            Material material = StylizedTextureLibrary.CreateMaterial(name, color, smoothness);
             generatedMaterials.Add(material);
             return material;
         }
@@ -276,6 +274,13 @@ namespace TurboBoats
                 mesh.vertices = vertices.ToArray();
                 mesh.triangles = triangles.ToArray();
                 mesh.normals = normals.ToArray();
+                Vector2[] uvs = new Vector2[vertices.Count];
+                for (int i = 0; i < vertices.Count; i++)
+                {
+                    Vector3 vertex = vertices[i];
+                    uvs[i] = new Vector2((vertex.z + 2.25f) * 0.22f, vertex.x * 0.7f + 0.5f);
+                }
+                mesh.uv = uvs;
                 mesh.RecalculateBounds();
                 return mesh;
             }
